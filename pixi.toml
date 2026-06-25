@@ -1,0 +1,21 @@
+[workspace]
+name = "bdgrovesbot"
+version = "0.1.0"
+description = "Wikipedia wildfire bot for Bdgroves — auto-updates fire acreages from WFIGS/CAL FIRE"
+authors = ["Bdgroves"]
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[dependencies]
+python = "3.12.*"
+pip = "*"
+
+[pypi-dependencies]
+pywikibot = ">=9.0"
+requests = ">=2.31"
+
+[tasks]
+dryrun = "python bot/tuolumne_bot.py --dry-run"
+bot    = "python bot/tuolumne_bot.py --no-dry-run"
+nevada = "python bot/nevada_bot.py --dry-run"
+setup  = "python -m pywikibot.scripts.generate_user_files"

@@ -1,0 +1,9 @@
+# pywikibot credentials — NEVER commit these
+user-config.py
+user-password.py
+*.pyc
+__pycache__/
+.pixi/
+logs/*.log
+*.egg-info/
+.env
