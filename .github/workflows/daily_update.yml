@@ -12,13 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          pixi-version: latest
-          frozen: false          # don't require pixi.lock to exist
+          python-version: '3.12'
 
       - name: Install dependencies
-        run: pixi install --no-lockfile-update
+        run: pip install pywikibot requests
 
       - name: Write pywikibot credentials
         run: |
@@ -28,7 +28,7 @@ jobs:
           usernames['wikipedia']['en'] = 'Bdgroves'
           PYEOF
 
-      - name: Run Tuolumne bot (dry run)
-        run: pixi run dryrun
-        # Change to: pixi run bot
+      - name: Run Tuolumne bot dry run
+        run: python bot/tuolumne_bot.py --dry-run
+        # Change to: python bot/tuolumne_bot.py --no-dry-run
         # once you are ready to go live

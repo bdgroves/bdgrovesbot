@@ -74,8 +74,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(open(sys.stdout.fileno(), mode="w", encoding="utf-8", closefd=False) if hasattr(sys.stdout, "fileno") else sys.stdout),
     ],
 )
 log = logging.getLogger("bdgrovesbot.tuolumne")
@@ -145,7 +145,7 @@ def get_active_fires():
 # ── QGIS GeoJSON refresh ──────────────────────────────────────────────────────
 def refresh_geojson():
     """Download fresh GeoJSON (all fires) and save for QGIS."""
-    log.info(f"Refreshing QGIS GeoJSON → {GEOJSON_OUT}")
+    log.info(f"Refreshing QGIS GeoJSON -> {GEOJSON_OUT}")
     try:
         # Build all-fires URL (active + contained for full picture)
         url = (
@@ -174,7 +174,7 @@ def refresh_geojson():
         with open(GEOJSON_OUT, 'w') as f:
             f.write(gjson)
         fc = len(json.loads(gjson).get("features", []))
-        log.info(f"  ✓ GeoJSON saved — {fc} feature(s)")
+        log.info(f"  OK GeoJSON saved — {fc} feature(s)")
         return True
     except Exception as e:
         log.error(f"GeoJSON refresh failed: {e}")
@@ -244,8 +244,8 @@ def main(dry_run: bool):
         new_text, n = update_acreage(text, f["name"], f["acres"], f["pct"])
         if n:
             text = new_text
-            changes.append(f"{f['name']} → {int(f['acres']):,} ac")
-            log.info(f"  ✓ Queued Wikipedia update: {f['name']} = {int(f['acres']):,} ac")
+            changes.append(f"{f['name']} -> {int(f['acres']):,} ac")
+            log.info(f"  OK Queued Wikipedia update: {f['name']} = {int(f['acres']):,} ac")
         else:
             log.info(f"  — Not in Wikipedia article (manual add needed): {f['name']}")
 
@@ -264,7 +264,7 @@ def main(dry_run: bool):
     else:
         page.text = text
         page.save(summary=summary, minor=True, botflag=False)
-        log.info("✓ Wikipedia page saved.")
+        log.info("OK Wikipedia page saved.")
 
 
 if __name__ == "__main__":
