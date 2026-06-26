@@ -452,11 +452,82 @@ def main(dry_run: bool):
         log.info("OK Wikipedia page saved.")
 
 
+def test_insert(dry_run: bool):
+    """
+    Insert a clearly-labelled TEST row into the Wikipedia page to verify
+    the full auth + write pipeline works end to end.
+    The row is easy to find and delete: fire name is 'BdgrovesBot Test'.
+    Safe to run — just delete the row from Wikipedia afterward.
+    """
+    log.info("=" * 60)
+    log.info("BdgrovesBot — TEST INSERT MODE")
+    log.info(f"Mode: {'DRY RUN' if dry_run else '*** LIVE — will write to Wikipedia ***'}")
+    log.info(f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    log.info("=" * 60)
+
+    fake_fire = {
+        "name":             "BdgrovesBot Test",
+        "acres":            42,
+        "pct":              0,
+        "cause":            "Bot test — safe to delete this row",
+        "start_date":       datetime.now(timezone.utc).strftime("%B %-d")
+                            if sys.platform != "win32"
+                            else datetime.now(timezone.utc).strftime("%B %d").replace(" 0", " "),
+        "containment_date": "",
+        "contained_ms":     None,
+        "lat":              37.9735,
+        "lon":              -120.2375,
+        "uid":              "TEST-000",
+    }
+
+    row = build_new_row(fake_fire)
+    log.info(f"\nRow that will be inserted:\n{row}")
+
+    import pywikibot
+    site = pywikibot.Site("en", "wikipedia")
+    page = pywikibot.Page(site, PAGE_NAME)
+
+    if not page.exists():
+        log.error(f"Wikipedia page not found: {PAGE_NAME}")
+        return
+
+    text = page.text
+    new_text, ok = insert_new_row(text, fake_fire)
+
+    if not ok:
+        log.error("Failed to find table |} — insert aborted")
+        return
+
+    summary = (
+        "BdgrovesBot test insert — please delete this row "
+        "(verifying bot auth + write pipeline)"
+    )
+
+    if dry_run:
+        log.info("[DRY RUN] Row NOT written. Use --no-dry-run to actually test the write.")
+    else:
+        page.text = new_text
+        page.save(summary=summary, minor=False, botflag=False)
+        log.info("OK Test row written to Wikipedia.")
+        log.info("→ Go delete it: https://en.wikipedia.org/wiki/2026_Tuolumne_County_wildfires")
+        log.info("  Edit the page, find 'BdgrovesBot Test', remove that row, save.")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="BdgrovesBot — Tuolumne County wildfire updater"
     )
     parser.add_argument("--dry-run", action="store_true", default=True)
     parser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+    parser.add_argument(
+        "--test-insert",
+        action="store_true",
+        default=False,
+        help="Insert a fake test row to verify the Wikipedia auth + write pipeline",
+    )
     args = parser.parse_args()
-    main(dry_run=args.dry_run)
+
+    if args.test_insert:
+        test_insert(dry_run=args.dry_run)
+    else:
+        main(dry_run=args.dry_run)
