@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: pip install pywikibot requests
 
+      - name: Create logs directory
+        run: mkdir -p logs
+
       - name: Write pywikibot credentials
         run: |
           cat > user-config.py << 'PYEOF'
