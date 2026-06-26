@@ -24,14 +24,20 @@ jobs:
         run: mkdir -p logs
 
       - name: Write pywikibot credentials
+        env:
+          WIKI_BOT_PASSWORD: ${{ secrets.WIKI_BOT_PASSWORD }}
         run: |
+          # user-config.py — tells pywikibot who we are
           cat > user-config.py << 'PYEOF'
           family = 'wikipedia'
           mylang = 'en'
           usernames['wikipedia']['en'] = 'Bdgroves'
+          password_file = 'passwords.py'
           PYEOF
 
-      - name: Run Tuolumne bot dry run
-        run: python bot/tuolumne_bot.py --dry-run
-        # Change to: python bot/tuolumne_bot.py --no-dry-run
-        # once you are ready to go live
+          # passwords.py — bot password from GitHub Secret
+          # Format: (username, BotPassword(bot_name, password))
+          echo "('Bdgroves', BotPassword('bdgrovesbot', '${WIKI_BOT_PASSWORD}'))" > passwords.py
+
+      - name: Run Tuolumne bot
+        run: python bot/tuolumne_bot.py --no-dry-run
