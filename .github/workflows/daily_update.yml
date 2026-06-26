@@ -42,4 +42,4 @@ jobs:
           PYEOF
 
       - name: Run Tuolumne bot
-        run: python bot/tuolumne_bot.py --no-dry-run
+        run: python bot/tuolumne_bot.py --dry-run
