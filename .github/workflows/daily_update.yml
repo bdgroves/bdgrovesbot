@@ -2,23 +2,33 @@ name: Daily Wildfire Update
 
 on:
   schedule:
-    - cron: '0 14 * * *'   # 7am Pacific (UTC-7)
-  workflow_dispatch:         # manual trigger from GitHub UI
+    - cron: '0 14 * * *'   # 7am Pacific (UTC-7 summer)
+  workflow_dispatch:         # manual trigger from GitHub Actions UI
 
 jobs:
   update-tuolumne:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: prefix-dev/setup-pixi@v0.8.1
         with:
           pixi-version: latest
+          frozen: false          # don't require pixi.lock to exist
 
-      - name: Write pywikibot config
-        run: echo "${{ secrets.USER_CONFIG }}" > user-config.py
+      - name: Install dependencies
+        run: pixi install --no-lockfile-update
+
+      - name: Write pywikibot credentials
+        run: |
+          cat > user-config.py << 'PYEOF'
+          family = 'wikipedia'
+          mylang = 'en'
+          usernames['wikipedia']['en'] = 'Bdgroves'
+          PYEOF
 
       - name: Run Tuolumne bot (dry run)
         run: pixi run dryrun
         # Change to: pixi run bot
-        # once you're ready to go live
+        # once you are ready to go live
