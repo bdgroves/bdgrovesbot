@@ -448,7 +448,7 @@ def main(dry_run: bool):
                     log.info(build_new_row(f))
     else:
         page.text = text
-        page.save(summary=summary, minor=False, botflag=False)
+        page.save(summary=summary, minor=False, bot=False)
         log.info("OK Wikipedia page saved.")
 
 
@@ -507,7 +507,7 @@ def test_insert(dry_run: bool):
         log.info("[DRY RUN] Row NOT written. Use --no-dry-run to actually test the write.")
     else:
         page.text = new_text
-        page.save(summary=summary, minor=False, botflag=False)
+        page.save(summary=summary, minor=False, bot=False)
         log.info("OK Test row written to Wikipedia.")
         log.info("→ Go delete it: https://en.wikipedia.org/wiki/2026_Tuolumne_County_wildfires")
         log.info("  Edit the page, find 'BdgrovesBot Test', remove that row, save.")

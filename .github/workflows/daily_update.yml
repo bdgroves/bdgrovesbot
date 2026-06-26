@@ -27,7 +27,6 @@ jobs:
         env:
           WIKI_BOT_PASSWORD: ${{ secrets.WIKI_BOT_PASSWORD }}
         run: |
-          # user-config.py — tells pywikibot who we are
           cat > user-config.py << 'PYEOF'
           family = 'wikipedia'
           mylang = 'en'
@@ -35,9 +34,12 @@ jobs:
           password_file = 'passwords.py'
           PYEOF
 
-          # passwords.py — bot password from GitHub Secret
-          # Format: (username, BotPassword(bot_name, password))
-          echo "('Bdgroves', BotPassword('bdgrovesbot', '${WIKI_BOT_PASSWORD}'))" > passwords.py
+          python - << PYEOF
+          import os
+          pwd = os.environ['WIKI_BOT_PASSWORD']
+          with open('passwords.py', 'w') as f:
+              f.write(f"('Bdgroves', BotPassword('bdgrovesbot', '{pwd}'))\n")
+          PYEOF
 
       - name: Run Tuolumne bot
         run: python bot/tuolumne_bot.py --no-dry-run
