@@ -9,6 +9,7 @@ platforms = ["win-64"]
 [dependencies]
 python = "3.12.*"
 pip = "*"
+requests = ">=2.34.2,<3"
 
 [pypi-dependencies]
 pywikibot = ">=9.0"

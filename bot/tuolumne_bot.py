@@ -74,6 +74,12 @@ WFIGS_ACTIVE_URL = (
     "&orderByFields=poly_GISAcres+DESC"
 )
 
+# CAL FIRE incident API — much faster than WFIGS for state-jurisdiction fires.
+# WFIGS can lag CAL FIRE's own site by hours for small/new ignitions.
+# This is a community-documented public endpoint (no auth required), used by
+# multiple open-source CA fire trackers including simonw/ca-fires-history.
+CALFIRE_API_URL = "https://www.fire.ca.gov/umbraco/Api/IncidentApi/GetIncidents"
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -182,6 +188,7 @@ def get_active_fires():
                     "uid":         p.get("attr_UniqueFireIdentifier") or "—",
                     "lat":         lat,
                     "lon":         lon,
+                    "source":      "WFIGS (NIFC)",
                 })
                 log.info(
                     f"  {name:<22} {acres:>8} ac  {pct}%  "
@@ -193,6 +200,133 @@ def get_active_fires():
     except Exception as e:
         log.error(f"WFIGS active query failed: {e}")
         return []
+
+
+# ── CAL FIRE (faster source, catches what WFIGS hasn't synced yet) ────────────
+def get_calfire_tuolumne_fires():
+    """
+    Pull current Tuolumne County incidents directly from CAL FIRE's own API.
+    This often has new fires hours before they appear in WFIGS/IRWIN, since
+    WFIGS depends on a sync step that can lag for small/new ignitions.
+    Returns a list of fires in the same shape as get_active_fires() so they
+    can be merged/deduplicated against the WFIGS list by name.
+    """
+    log.info("Querying CAL FIRE incident API — Tuolumne County...")
+    try:
+        req = urllib.request.Request(
+            CALFIRE_API_URL,
+            headers={"User-Agent": "BdgrovesBot/1.0 (Wikipedia wildfire updater)"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read())
+
+        # Response has Incidents / ListIncidents / AllYearIncidents — use the
+        # currently-active list.
+        raw_incidents = d.get("Incidents") or d.get("ListIncidents") or []
+
+        fires = []
+        for inc in raw_incidents:
+            county = str(inc.get("County") or "").strip().lower()
+            if county != "tuolumne":
+                continue
+
+            name = str(inc.get("Name") or "").strip()
+            # Strip trailing " Fire" / " Incident" for consistency with WFIGS names
+            name_clean = re.sub(r"\s+(Fire|Incident)$", "", name, flags=re.IGNORECASE)
+
+            acres_raw = inc.get("AcresBurned")
+            try:
+                acres = round(float(acres_raw), 1) if acres_raw not in (None, "") else 0
+            except (TypeError, ValueError):
+                acres = 0
+
+            pct_raw = inc.get("PercentContained")
+            try:
+                pct = int(float(pct_raw)) if pct_raw not in (None, "") else 0
+            except (TypeError, ValueError):
+                pct = 0
+
+            if acres <= 0 or not name_clean:
+                continue
+
+            lat = inc.get("Latitude")
+            lon = inc.get("Longitude")
+            started = inc.get("StartedDateOnly") or inc.get("Started")
+
+            fires.append({
+                "name":        name_clean.title(),
+                "acres":       acres,
+                "pct":         pct,
+                "cause":       inc.get("CalFireIncident") and "—" or "—",
+                "agency":      "CAL FIRE",
+                "fuel":        "—",
+                "fuel_model":  "—",
+                "behavior":    "—",
+                "personnel":   0,
+                "complexity":  "—",
+                "discovered_ms": None,
+                "discovered":  started or "—",
+                "start_date":  fmt_calfire_date(started),
+                "contained_ms": None,
+                "containment_date": "",
+                "modified":    inc.get("Updated") or "—",
+                "map_method":  "—",
+                "uid":         inc.get("UniqueId") or "—",
+                "lat":         float(lat) if lat else None,
+                "lon":         float(lon) if lon else None,
+                "source":      "CAL FIRE (fire.ca.gov)",
+                "url":         inc.get("Url") or "",
+            })
+            log.info(
+                f"  [CAL FIRE] {name_clean:<22} {acres:>8} ac  {pct}%  "
+                f"started={started}"
+            )
+
+        log.info(f"CAL FIRE: found {len(fires)} Tuolumne County incident(s)")
+        return fires
+    except Exception as e:
+        log.error(f"CAL FIRE API query failed: {e}")
+        return []
+
+
+def fmt_calfire_date(date_str):
+    """Convert CAL FIRE's date string to Wikipedia table format: 'June 30'."""
+    if not date_str:
+        return "—"
+    try:
+        # CAL FIRE typically returns ISO-ish strings; try a few common formats
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y"):
+            try:
+                dt = datetime.strptime(date_str.split(".")[0], fmt)
+                return dt.strftime("%B %-d") if sys.platform != "win32" else dt.strftime(
+                    "%B %d"
+                ).replace(" 0", " ")
+            except ValueError:
+                continue
+    except Exception:
+        pass
+    return "—"
+
+
+def merge_fire_sources(wfigs_fires, calfire_fires):
+    """
+    Merge WFIGS and CAL FIRE fire lists, deduplicating by name.
+    CAL FIRE entries are only added if WFIGS doesn't already have that fire —
+    this means CAL FIRE fills the gap for new fires WFIGS hasn't synced yet,
+    while WFIGS (richer data) wins whenever both sources have the same fire.
+    """
+    wfigs_names = {f["name"].strip().lower() for f in wfigs_fires}
+    merged = list(wfigs_fires)
+
+    for cf in calfire_fires:
+        if cf["name"].strip().lower() not in wfigs_names:
+            log.info(
+                f"  ++ CAL FIRE-only fire (not yet in WFIGS): {cf['name']} "
+                f"({cf['acres']} ac)"
+            )
+            merged.append(cf)
+
+    return merged
 
 
 # ── QGIS GeoJSON refresh ──────────────────────────────────────────────────────
@@ -291,8 +425,9 @@ def build_new_row(fire):
     acres_cell = f"{{{{no|{acres:,}}}}}"
 
     # References: stub — editor should add a proper CAL FIRE or WFIGS ref
+    source_label = fire.get("source", "WFIGS")
     ref_stub = (
-        f"<!-- bot-stub: add ref. WFIGS ID: {uid} -->"
+        f"<!-- bot-stub: add ref. Source: {source_label}. ID: {uid} -->"
     )
 
     row = (
